@@ -1,68 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>CurlWise</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 2rem;
-            background-color: #f9f5ff;
-            color: #4c1d95;
-            text-align: center;
-        }
-        button {
-            padding: 0.75rem 1.5rem;
-            background-color: #7c3aed;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #6b21a8;
-        }
-        #analysisResults {
-            margin-top: 1.5rem;
-            text-align: left;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>CurlWise</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f9f5ff;
+      color: #4c1d95;
+      text-align: center;
+    }
+    #analysisResults {
+      margin-top: 1.5rem;
+      text-align: left;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.75rem 1.5rem;
+      background-color: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
-    <h1>CurlWise</h1>
-    <p>Upload a photo of your curls to receive a personalized analysis and care routine.</p>
-    <input type="file" id="imageUpload" accept="image/*">
-    <br><br>
-    <button id="analyzeImageButton">Analyze Image</button>
-    <div id="analysisResults"></div>
-    <script>
-        document.getElementById('analyzeImageButton').addEventListener('click', async () => {
-            const input = document.getElementById('imageUpload');
-            const resultsDiv = document.getElementById('analysisResults');
-            if (!input.files || input.files.length === 0) {
-                alert('Please select an image first.');
-                return;
-            }
-            const file = input.files[0];
-            const formData = new FormData();
-            formData.append('image', file);
-            resultsDiv.innerHTML = '<p>Analyzing your curls...</p>';
-            try {
-                const response = await fetch('https://curlwise-backend.onrender.com/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                const analysis = (data.curl_analysis || '').replace(/\n/g, '<br>');
-                const routine = (data.result || '').replace(/\n/g, '<br>');
-                resultsDiv.innerHTML =
-                    '<h3>Curl Analysis</h3><p>' + analysis + '</p>' +
-                    '<h3>Your Personalized Care Routine & DIY Recipes</h3><p>' + routine + '</p>';
-            } catch (error) {
-                resultsDiv.innerHTML = '<p>An error occurred. Please try again later.</p>';
-            }
+  <h1>CurlWise</h1>
+  <p>Upload a photo of your curls to receive a personalized analysis and care routine.</p>
+  <button id="payButton">Pay $1</button>
+  <br><br>
+  <input type="file" id="imageUpload" accept="image/*" disabled />
+  <br><br>
+  <button id="analyzeImageButton" disabled>Analyze Image</button>
+  <div id="analysisResults"></div>
+  <script>
+    const stripe = Stripe("pk_test_51RvslqEu6HKE92zrK9x9BdR9eIhlPP8lkxGSE94JCUXKc6BuA0zkSRNSLNuID4R13msZsBKUUZdybddWzAZ53m6E000yxqeDED");
+    let paidSessionId = null;
+
+    document.getElementById('payButton').addEventListener('click', async () => {
+      try {
+        const response = await fetch('https://curlwise-backend.onrender.com/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success_url: window.location.href,
+            cancel_url: window.location.href
+          })
         });
-    </script>
-</body>
-</html>
+        const { id } = await response.json();
+        const result = await stripe.redirectToCheckout({ sessionId: id });
+        if (result.error) {
+          alert(result.error.message);
+        }
+      } catch (error) {
+        alert('Error creating Checkout session');
+      }
+    });
+
+    // Check for session_id in the URL after redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('session_id')) {
+      paidSessionId = params.get('session_id');
+      document.getElementById('imageUpload').disabled = false;
+      document.getElementById('analyzeImageButton').disabled = false;
