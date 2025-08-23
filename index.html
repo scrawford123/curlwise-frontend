@@ -25,49 +25,49 @@
       font-size: 1rem;
       cursor: pointer;
     }
-    button:disabled {
-      background-color: #ccc;
-      cursor: not-allowed;
+    input[type="file"] {
+      margin-top: 1rem;
     }
   </style>
-  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
   <h1>CurlWise</h1>
   <p>Upload a photo of your curls to receive a personalized analysis and care routine.</p>
-  <button id="payButton">Pay $1</button>
-  <br><br>
-  <input type="file" id="imageUpload" accept="image/*" disabled />
-  <br><br>
-  <button id="analyzeImageButton" disabled>Analyze Image</button>
+  <input type="file" id="imageUpload" accept="image/*">
+  <br>
+  <button id="analyzeImageButton">Analyze Image</button>
   <div id="analysisResults"></div>
-  <script>
-    const stripe = Stripe("pk_test_51RvslqEu6HKE92zrK9x9BdR9eIhlPP8lkxGSE94JCUXKc6BuA0zkSRNSLNuID4R13msZsBKUUZdybddWzAZ53m6E000yxqeDED");
-    let paidSessionId = null;
-
-    document.getElementById('payButton').addEventListener('click', async () => {
-      try {
-        const response = await fetch('https://curlwise-backend.onrender.com/create-checkout-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            success_url: window.location.href,
-            cancel_url: window.location.href
-          })
-        });
-        const { id } = await response.json();
-        const result = await stripe.redirectToCheckout({ sessionId: id });
-        if (result.error) {
-          alert(result.error.message);
-        }
-      } catch (error) {
-        alert('Error creating Checkout session');
-      }
+<script>
+document.getElementById('analyzeImageButton').addEventListener('click', async () => {
+  const input = document.getElementById('imageUpload');
+  const resultsDiv = document.getElementById('analysisResults');
+  if (!input.files || input.files.length === 0) {
+    alert('Please select an image first.');
+    return;
+  }
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('image', file);
+  resultsDiv.innerHTML = 'Analyzing...';
+  try {
+    const response = await fetch('https://curlwise-backend.onrender.com/analyze', {
+      method: 'POST',
+      body: formData
     });
-
-    // Check for session_id in the URL after redirect
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('session_id')) {
-      paidSessionId = params.get('session_id');
-      document.getElementById('imageUpload').disabled = false;
-      document.getElementById('analyzeImageButton').disabled = false;
+    const data = await response.json();
+    if (data.error) {
+      resultsDiv.innerHTML = 'Error: ' + data.error;
+      return;
+    }
+    const analysis = (data.curl_analysis || '').replace(/\n/g, '<br>');
+    const routine = (data.result || '').replace(/\n/g, '<br>');
+    resultsDiv.innerHTML =
+      '<h4>Analysis</h4><p>' + analysis + '</p>' +
+      '<h4>Your Personalized Care Routine & DIY Recipes</h4><p>' + routine + '</p>';
+  } catch (error) {
+    resultsDiv.innerHTML = 'Error processing request. Please try again later.';
+  }
+});
+</script>
+</body>
+</html>
